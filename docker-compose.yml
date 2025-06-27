@@ -1,0 +1,52 @@
+# Version du fichier docker-compose. Ici, on utilise la version 3.9 (compatible avec Docker 20.10+).
+version: '3.9'
+
+# Définition des réseaux personnalisés pour permettre la communication entre les conteneurs.
+networks:
+    laravel:  # Nom du réseau Docker utilisé par les services ci-dessous.
+# Pas besoin d'autres options ici, Docker gère les détails.
+
+# Début de la configuration des services (conteneurs)
+services:
+
+    # Service pour le serveur web Nginx
+    nginx:
+        # Configuration pour construire l’image personnalisée de Nginx
+        build:
+            context: .  # Le contexte de construction est le dossier courant (où se trouve ce fichier)
+            dockerfile: docker/nginx.Dockerfile  # Spécifie le chemin du Dockerfile pour Nginx
+        image: nginx:stable  # Donne un nom/tag à l’image construite (ici basé sur l’image officielle stable de Nginx)
+        container_name: nginx  # Nom donné au conteneur (facultatif mais pratique pour l’identification)
+        ports:
+            - "8089:80"  # Redirige le port 8089 de la machine hôte vers le port 80 du conteneur (serveur Nginx)
+        volumes:
+            - .:/var/www/html  # Monte le répertoire courant dans le conteneur à l’emplacement /var/www/html (code source Laravel)
+        links:
+            - fpm  # Permet au conteneur Nginx de communiquer avec le conteneur PHP-FPM (déprécié mais encore fonctionnel)
+        networks:
+            - laravel  # Relie ce conteneur au réseau nommé "laravel"
+
+    # Service pour PHP-FPM, utilisé pour interpréter le code PHP de Laravel
+    fpm:
+        build:
+            context: .  # Construit l’image à partir du dossier courant
+            dockerfile: docker/fpm.Dockerfile  # Fichier Dockerfile personnalisé pour PHP-FPM
+        volumes:
+            - .:/var/www/html  # Monte le projet Laravel dans le conteneur PHP pour qu’il soit exécuté
+        links:
+            - db  # Permet à FPM de se connecter à la base de données (déprécié mais fonctionne)
+        networks:
+            - laravel  # Relie FPM au même réseau que Nginx et la base de données
+
+    # Service pour la base de données MySQL
+    db:
+        image: mysql:8.0  # Utilise l’image officielle de MySQL version 8.0
+        ports:
+            - "3306:3306"  # Expose le port 3306 pour accéder à MySQL depuis l’extérieur (ex : via un client MySQL)
+        environment:
+            MYSQL_ROOT_PASSWORD: root  # Mot de passe pour l’utilisateur root de MySQL
+            MYSQL_DATABASE: data_base_test_docker  # Nom de la base de données à créer automatiquement
+            MYSQL_USER: user  # Nom de l’utilisateur MySQL personnalisé
+            MYSQL_PASSWORD: password  # Mot de passe de l’utilisateur défini ci-dessus
+        networks:
+            - laravel  # Relie la base de données au même réseau pour que FPM et Nginx puissent y accéder
